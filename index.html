@@ -1,0 +1,1391 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下班时间管理</title>
+    <meta name="description" content="高效的下班时间与加班管理工具，支持打卡、统计、Google Apps Script 云同步。">
+    <meta name="keywords" content="下班,加班,打卡,时间管理,Google Apps Script,考勤,同步">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle fill='%23667eea' cx='50' cy='50' r='48'/%3E%3Ctext x='50' y='60' font-size='48' text-anchor='middle' fill='white'%3E%E6%97%B6%3C/text%3E%3C/svg%3E">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .app-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 600px;
+            position: relative;
+            cursor: move;
+            user-select: none;
+        }
+
+        .app-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .current-time {
+            font-size: 1.2em;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+
+        .status-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            color: white;
+            text-align: center;
+            transform: perspective(1000px) rotateX(2deg);
+            transition: transform 0.3s ease;
+        }
+
+        .status-card:hover {
+            transform: perspective(1000px) rotateX(0deg) translateY(-5px);
+        }
+
+        .status-title {
+            font-size: 1.1em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .status-time {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .status-subtitle {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-number {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(240, 147, 251, 0.4);
+        }
+
+        .settings-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .settings-title {
+            font-size: 1.2em;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #34495e;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .history-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            animation: slideIn 0.3s ease;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 10000;
+        }
+
+        .notification.success {
+            background: #2ecc71;
+        }
+
+        .notification.warning {
+            background: #f39c12;
+        }
+
+        .notification.error {
+            background: #e74c3c;
+        }
+
+        .notification.info {
+            background: #3498db;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .synced {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+
+        .pending {
+            color: #f39c12;
+            font-weight: bold;
+        }
+
+        .debug-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .drag-handle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: move;
+            opacity: 0.3;
+        }
+
+        .drag-handle::before,
+        .drag-handle::after {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #999;
+            border-radius: 50%;
+        }
+
+        .drag-handle::before {
+            top: 2px;
+            left: 2px;
+            box-shadow: 6px 0 0 #999, 12px 0 0 #999, 0 6px 0 #999, 6px 6px 0 #999, 12px 6px 0 #999, 0 12px 0 #999, 6px 12px 0 #999, 12px 12px 0 #999;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="appContainer">
+        <div class="drag-handle"></div>
+        
+        <div class="header">
+            <h1>下班时间管理</h1>
+            <div class="current-time" id="currentTime"></div>
+        </div>
+
+        <div class="status-card">
+            <div class="status-title">今日预计下班时间</div>
+            <div class="status-time" id="expectedTime">18:00</div>
+            <div class="status-subtitle" id="statusText">准时下班</div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="monthlyOvertime">0</div>
+                <div class="stat-label">本月已加班(小时)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="remainingOvertime">29</div>
+                <div class="stat-label">剩余加班(小时)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="averageOffTime">18:00</div>
+                <div class="stat-label">本月平均下班时间</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="workDaysLeft">0</div>
+                <div class="stat-label">剩余工作日</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="clockOut()">下班打卡</button>
+            <button class="btn btn-secondary" onclick="toggleSettings()">设置</button>
+            <button class="btn btn-secondary" onclick="refreshData()" title="刷新数据">🔄</button>
+            <button class="btn btn-secondary" onclick="tracker.toggleDebugMode()" title="切换调试模式">🐞</button>
+        </div>
+
+        <div class="settings-section" id="settingsSection" style="display: none;">
+            <div class="settings-title">设置</div>
+            <div class="input-group">
+                <label>Google Apps Script Web App URL</label>
+                <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/AKfycbyF-eivnhfBwHssjJHdIc7UoU3-1ceNipWBSlM3XufPIQlIbb89S1MeKah8LVTpbBjJtw/exec">
+            </div>
+            <div class="input-group">
+                <label>正常下班时间</label>
+                <input type="time" id="normalOffTime" value="18:00">
+            </div>
+            <div class="input-group">
+                <label>月度加班目标(小时)</label>
+                <input type="number" id="monthlyTarget" value="29" min="0" max="100">
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+            <button class="btn btn-secondary" onclick="testConnection()">测试连接</button>
+        </div>
+
+        <div class="history-section">
+            <div class="settings-title">最近打卡记录</div>
+            <div id="historyList">
+                <!-- 历史记录将在这里显示 -->
+            </div>
+        </div>
+
+        <div class="debug-info" id="debugInfo" style="display: none;">
+            <!-- 调试信息 -->
+        </div>
+    </div>
+
+    <footer style="text-align:center;color:#aaa;font-size:0.95em;margin-top:18px;">
+        <span>© 2025 下班时间管理 | <a href="https://github.com/shigobo/My-OffDuty-App" target="_blank" style="color:#764ba2;text-decoration:none;">GitHub</a> | <a href="javascript:void(0)" onclick="alert('如需帮助请联系开发者 shigobo@protonmail.com')" style="color:#764ba2;text-decoration:none;">关于/帮助</a></span>
+    </footer>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+
+
+  function getISODateString(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+        class OvertimeTracker {
+            constructor() {
+                this.normalOffTime = '18:00';
+                this.monthlyTarget = 29;
+                this.workHistory = JSON.parse(localStorage.getItem('workHistory') || '[]');
+                this.gasUrl = localStorage.getItem('gasUrl') || '';
+                this.isDragging = false;
+                this.dragOffset = { x: 0, y: 0 };
+                this.serverStats = null;
+                this.debugMode = false; // 设置为true启用调试模式
+                
+                this.initDragAndDrop();
+                this.startClock();
+                this.loadSettings();
+                this.loadFromServer();
+            }
+
+            debug(message, data = null) {
+                if (this.debugMode) {
+                    console.log('[DEBUG]', message, data);
+                    const debugInfo = document.getElementById('debugInfo');
+                    if (debugInfo) {
+                        debugInfo.style.display = 'block';
+                        const timestamp = new Date().toLocaleTimeString();
+                        debugInfo.innerHTML += `[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2) : ''}\n`;
+                        debugInfo.scrollTop = debugInfo.scrollHeight;
+                    }
+                }
+            }
+
+            initDragAndDrop() {
+                const container = document.getElementById('appContainer');
+                let startX, startY, initialX, initialY;
+
+                container.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('.drag-handle') || e.target === container) {
+                        this.isDragging = true;
+                        startX = e.clientX;
+                        startY = e.clientY;
+                        const rect = container.getBoundingClientRect();
+                        initialX = rect.left;
+                        initialY = rect.top;
+                        
+                        container.style.position = 'fixed';
+                        container.style.left = initialX + 'px';
+                        container.style.top = initialY + 'px';
+                        container.style.zIndex = '9999';
+                        container.style.cursor = 'grabbing';
+                        
+                        e.preventDefault();
+                    }
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isDragging) {
+                        const deltaX = e.clientX - startX;
+                        const deltaY = e.clientY - startY;
+                        
+                        container.style.left = (initialX + deltaX) + 'px';
+                        container.style.top = (initialY + deltaY) + 'px';
+                    }
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (this.isDragging) {
+                        this.isDragging = false;
+                        container.style.cursor = 'move';
+                    }
+                });
+            }
+  async fetchApi(url, options = {}) {
+    try {
+        // 对于 Google Apps Script，使用 no-cors 模式处理 GET 请求
+        const isGetRequest = !options.method || options.method.toUpperCase() === 'GET';
+        
+        const fetchOptions = {
+            ...options,
+            mode: isGetRequest ? 'no-cors' : 'cors',
+            credentials: 'omit', // 不发送凭据
+            cache: 'no-cache'
+        };
+        
+        this.debug("发起请求", {url, options: fetchOptions});
+        
+        const response = await fetch(url, fetchOptions);
+
+        // 对于 no-cors 模式，我们无法读取响应内容
+        if (fetchOptions.mode === 'no-cors') {
+            // 对于 GET 请求，我们假设请求成功了
+            // 但实际上我们无法获取响应数据
+            this.debug("no-cors 模式请求完成，但无法读取响应");
+            return { status: 'success', message: 'Request sent but response unavailable in no-cors mode' };
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP请求失败: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        this.debug("请求成功，返回数据", data);
+        return data;
+
+    } catch (error) {
+        this.debug("请求失败", error);
+        throw error;
+    }
+}
+async loadFromServer() {
+    if (!this.gasUrl) {
+        this.debug('未配置服务器URL，跳过服务器数据加载');
+        this.updateDisplay();
+        return;
+    }
+
+    this.debug('开始从服务器加载数据...');
+    this.showNotification('正在加载数据...', 'info');
+
+    // 尝试多种方法获取数据
+    const methods = [
+        () => this.fetchWithCORS(),
+        () => this.fetchWithJSONP(),
+        () => this.fetchWithProxy(),
+        () => this.fetchWithImage()
+    ];
+
+    let lastError;
+    
+    for (let i = 0; i < methods.length; i++) {
+        try {
+            this.debug(`尝试方法 ${i + 1}/${methods.length}`);
+            const data = await methods[i]();
+            
+            if (data !== null && data !== undefined) {
+                this.debug('成功获取数据', data);
+                await this.processServerData(data);
+                this.showNotification('数据同步成功！', 'success');
+                return;
+            } else {
+                this.debug(`方法 ${i + 1} 返回null/undefined`);
+            }
+        } catch (error) {
+            this.debug(`方法 ${i + 1} 失败:`, error.message);
+            lastError = error;
+        }
+    }
+
+    // 如果所有方法都失败了
+    this.debug('所有数据获取方法都失败了，使用本地数据');
+    this.serverStats = null; // 确保使用本地计算
+    this.updateDisplay();
+    this.showNotification('无法连接服务器，使用本地数据', 'warning');
+}
+
+async fetchWithJSONP() {
+    this.debug('尝试 JSONP 请求');
+    
+    return new Promise((resolve, reject) => {
+        const callbackName = 'gas_callback_' + Date.now();
+        const script = document.createElement('script');
+        
+        const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error('JSONP 超时'));
+        }, 15000); // 15秒超时
+
+        function cleanup() {
+            if (script.parentNode) {
+                script.parentNode.removeChild(script);
+            }
+            if (window[callbackName]) {
+                delete window[callbackName];
+            }
+            clearTimeout(timeout);
+        }
+
+        window[callbackName] = function(data) {
+            cleanup();
+            resolve(data);
+        };
+
+        script.onerror = function(e) {
+            cleanup();
+            reject(new Error('JSONP 脚本加载失败'));
+        };
+
+        // 构建 JSONP URL，确保格式正确
+        const separator = this.gasUrl.includes('?') ? '&' : '?';
+        const jsonpUrl = `${this.gasUrl}${separator}callback=${callbackName}&format=jsonp&_=${Date.now()}`;
+        
+        script.src = jsonpUrl;
+        this.debug('JSONP URL:', jsonpUrl);
+        
+        document.head.appendChild(script);
+    });
+}// 在 OvertimeTracker 类中添加这些缺失的方法
+
+async fetchWithCORS() {
+    this.debug('尝试 CORS 请求');
+    
+    try {
+        const response = await fetch(this.gasUrl + '?action=getStats&_=' + Date.now(), {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-cache',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
+        }
+
+        const data = await response.json();
+        this.debug('CORS 请求成功', data);
+        return data;
+    } catch (error) {
+        this.debug('CORS 请求失败', error);
+        throw error;
+    }
+}
+
+// 还需要添加处理服务器数据的方法
+async processServerData(data) {
+    this.debug('处理服务器数据', data);
+    
+    // 检查是否是空对象或无效数据
+    if (!data || Object.keys(data).length === 0) {
+        this.debug('服务器返回空数据，使用本地计算');
+        this.serverStats = null; // 清除服务器统计，强制使用本地计算
+        this.updateDisplay();
+        return;
+    }
+
+    // 检查是否有错误
+    if (data.error) {
+        this.debug('服务器返回错误', data.error);
+        throw new Error(data.error + (data.details ? ': ' + data.details : ''));
+    }
+
+    try {
+        // 处理统计数据
+        if (data.stats) {
+            this.serverStats = data.stats;
+            this.debug('更新服务器统计', this.serverStats);
+        } else {
+            this.debug('服务器数据中没有stats字段');
+            this.serverStats = null;
+        }
+
+        // 处理历史记录
+        if (data.history && Array.isArray(data.history) && data.history.length > 0) {
+            this.mergeServerHistory(data.history);
+            this.debug('合并了服务器历史记录', data.history.length + '条');
+        } else {
+            this.debug('没有服务器历史记录可合并');
+        }
+
+        // 更新显示
+        this.updateDisplay();
+        
+    } catch (error) {
+        this.debug('处理服务器数据时出错', error);
+        throw error;
+    }
+}
+toggleDebugMode() {
+    this.debugMode = !this.debugMode;
+    const debugInfo = document.getElementById('debugInfo');
+    if (debugInfo) {
+        debugInfo.style.display = this.debugMode ? 'block' : 'none';
+        if (this.debugMode) {
+            debugInfo.innerHTML = '=== 调试模式已开启 ===\n';
+        }
+    }
+    this.showNotification(`调试模式已${this.debugMode ? '开启' : '关闭'}`, 'info');
+}
+
+// 手动触发数据加载（用于测试）
+async manualRefresh() {
+    this.showNotification('手动刷新数据...', 'info');
+    await this.loadFromServer();
+}
+mergeServerHistory(serverHistory) {
+    this.debug('合并服务器历史记录', serverHistory);
+
+    const serverRecords = serverHistory.map(item => {
+        // 根据实际的字段名提取数据
+        const dateField = item.date || item.Date;
+        
+        // 修复：添加正确的字段名映射
+        const checkOutTime = item.time || item.checkOutTime || item.CheckOut || item.checkOut;
+        const overtimeHours = item.overtime || item.overtimeHours || item.OvertimeHours;
+
+        if (!dateField) {
+            this.debug('跳过无效记录（缺少日期）', item);
+            return null;
+        }
+
+        // 提取下班时间 - 处理ISO格式的UTC时间
+        let timeString = '18:00'; // 默认时间
+        
+        if (checkOutTime && typeof checkOutTime === 'string') {
+            if (checkOutTime.includes('T') && checkOutTime.includes('Z')) {
+                // ISO格式的UTC时间，需要转换为日本时间
+                try {
+                    const utcDate = new Date(checkOutTime);
+                    // 转换为日本时间 (UTC+9)
+                    const japanDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+                    timeString = japanDate.toTimeString().slice(0, 5);
+                    this.debug('UTC时间转换为日本时间', {
+                        原始UTC: checkOutTime,
+                        转换后: timeString,
+                        日本完整时间: japanDate.toISOString()
+                    });
+                } catch (error) {
+                    this.debug('时间转换失败，使用默认时间', { 原始时间: checkOutTime, 错误: error });
+                }
+            } else if (checkOutTime.includes(':')) {
+                // 如果是 HH:MM:SS 格式，截取前5位得到 HH:MM
+                // 或者直接是 HH:MM 格式
+                timeString = checkOutTime.slice(0, 5);
+                this.debug('直接使用时间字符串', { 原始: checkOutTime, 处理后: timeString });
+            }
+        } else if (checkOutTime && checkOutTime instanceof Date) {
+            // 如果是 Date 对象，提取时间部分
+            timeString = checkOutTime.toTimeString().slice(0, 5);
+        }
+
+        // 处理加班时间
+        let overtime = 0;
+        if (overtimeHours !== undefined && overtimeHours !== null) {
+            overtime = Math.max(0, parseFloat(overtimeHours) || 0);
+        }
+
+        const record = {
+            date: dateField, // 应该已经是 YYYY-MM-DD 格式
+            time: timeString,
+            overtime: overtime,
+            synced: true
+        };
+
+        this.debug('处理后的记录', { 
+            原始: item, 
+            处理后: record,
+            字段映射: { 
+                date: dateField, 
+                checkOut: checkOutTime, 
+                overtime: overtimeHours 
+            }
+        });
+        return record;
+    }).filter(Boolean);
+
+    this.debug('转换后的服务器记录', serverRecords);
+
+    // 合并逻辑：更新或添加记录
+    serverRecords.forEach(serverRecord => {
+        const existingIndex = this.workHistory.findIndex(localRecord => localRecord.date === serverRecord.date);
+
+        if (existingIndex === -1) {
+            // 添加新记录
+            this.workHistory.push(serverRecord);
+            this.debug('添加新记录', serverRecord);
+        } else {
+            // 更新现有记录
+            const oldRecord = { ...this.workHistory[existingIndex] };
+            this.workHistory[existingIndex] = { 
+                ...this.workHistory[existingIndex], 
+                ...serverRecord
+            };
+            this.debug('更新现有记录', { 旧: oldRecord, 新: this.workHistory[existingIndex] });
+        }
+    });
+
+    // 按日期倒序排列
+    this.workHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+    localStorage.setItem('workHistory', JSON.stringify(this.workHistory));
+    this.debug('合并后的历史记录', this.workHistory);
+}
+            timeToMinutes(timeStr) {
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                return hours * 60 + minutes;
+            }
+
+            startClock() {
+                let lastDate = new Date().toDateString();
+                setInterval(() => {
+                    const now = new Date();
+                    const currentDate = now.toDateString();
+                    
+                    if (currentDate !== lastDate) {
+                        lastDate = currentDate;
+                        this.updateDisplay();
+                        this.showNotification('新的一天开始，预计下班时间已更新！');
+                    }
+                    
+                    const timeString = now.toLocaleTimeString('zh-CN', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                    document.getElementById('currentTime').textContent = `当前时间: ${timeString}`;
+                }, 1000);
+            }
+
+calculateExpectedOffTime() {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    // 获取本月的工作记录
+    const monthlyRecords = this.workHistory.filter(record => {
+        const recordDate = new Date(record.date);
+        return recordDate.getMonth() === currentMonth &&
+               recordDate.getFullYear() === currentYear;
+    });
+
+    // 计算本月已完成的加班时间
+    const monthlyOvertime = monthlyRecords.reduce((total, record) => total + record.overtime, 0);
+
+    // 计算剩余需要的加班时间
+    const remainingOvertime = Math.max(0, this.monthlyTarget - monthlyOvertime);
+
+    // 计算剩余工作日（包括今天）
+    const remainingWorkDays = this.getRemainingWorkDays(currentYear, currentMonth, today.getDate());
+
+    // 计算每日需要的加班时间
+    const dailyOvertimeNeeded = remainingWorkDays > 0 ? remainingOvertime / remainingWorkDays : 0;
+
+    // 计算预计下班时间
+    const [normalHour, normalMinute] = this.normalOffTime.split(':').map(Number);
+    
+    // 详细计算过程
+    const dailyOvertimeMinutes = dailyOvertimeNeeded * 60; // 每日加班分钟数
+    const totalMinutes = normalHour * 60 + normalMinute + dailyOvertimeMinutes;
+    
+    const expectedHour = Math.floor(totalMinutes / 60);
+    const expectedMinute = Math.round(totalMinutes % 60); // 四舍五入到最近的分钟
+
+    // 计算本月平均下班时间
+    const averageOffTime = this.calculateAverageOffTime(monthlyRecords);
+
+    // 详细的调试信息
+    this.debug('=== 预计下班时间详细计算 ===', {
+        基础数据: {
+            本月目标加班小时: this.monthlyTarget,
+            本月已完成加班小时: monthlyOvertime,
+            剩余需要加班小时: remainingOvertime,
+            剩余工作日: remainingWorkDays,
+            正常下班时间: this.normalOffTime
+        },
+        计算过程: {
+            每日需要加班小时: dailyOvertimeNeeded,
+            每日需要加班分钟: dailyOvertimeMinutes,
+            正常下班分钟数: normalHour * 60 + normalMinute,
+            总分钟数: totalMinutes,
+            计算出的小时: expectedHour,
+            计算出的分钟: expectedMinute
+        },
+        最终结果: {
+            预计下班时间: `${expectedHour.toString().padStart(2, '0')}:${expectedMinute.toString().padStart(2, '0')}`
+        }
+    });
+
+    return {
+        time: `${expectedHour.toString().padStart(2, '0')}:${expectedMinute.toString().padStart(2, '0')}`,
+        monthlyOvertime: monthlyOvertime,
+        remainingOvertime: remainingOvertime,
+        dailyOvertime: dailyOvertimeNeeded,
+        workDaysLeft: remainingWorkDays,
+        averageOffTime: averageOffTime
+    };
+}
+
+            calculateAverageOffTime(records) {
+    if (records.length === 0) {
+        return this.normalOffTime; // 如果没有记录，返回正常下班时间
+    }
+
+    // 计算所有记录的下班时间平均值
+    let totalMinutes = 0;
+    let validRecords = 0;
+
+    records.forEach(record => {
+        if (record.time && record.time !== '00:00') {
+            const timeParts = record.time.split(':');
+            if (timeParts.length >= 2) {
+                const hour = parseInt(timeParts[0], 10);
+                const minute = parseInt(timeParts[1], 10);
+                
+                if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                    totalMinutes += hour * 60 + minute;
+                    validRecords++;
+                    this.debug(`有效记录: ${record.date} ${record.time}`);
+                }
+            }
+        }
+    });
+
+    if (validRecords === 0) {
+        this.debug('没有有效的下班时间记录，使用正常下班时间');
+        return this.normalOffTime;
+    }
+
+    const averageMinutes = Math.round(totalMinutes / validRecords);
+    const averageHour = Math.floor(averageMinutes / 60);
+    const averageMinute = averageMinutes % 60;
+
+    const result = `${averageHour.toString().padStart(2, '0')}:${averageMinute.toString().padStart(2, '0')}`;
+    
+    this.debug('平均下班时间计算', {
+        有效记录数: validRecords,
+        总分钟数: totalMinutes,
+        平均分钟数: averageMinutes,
+        平均下班时间: result
+    });
+
+    return result;
+}
+
+            getWorkDaysInMonth(year, month) {
+                const date = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0).getDate();
+                let workDays = 0;
+                
+                for (let day = 1; day <= lastDay; day++) {
+                    date.setDate(day);
+                    const dayOfWeek = date.getDay();
+                    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                        workDays++;
+                    }
+                }
+                
+                return workDays;
+            }
+
+         getRemainingWorkDays(year, month, currentDay) {
+    const today = new Date(year, month, currentDay);
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    let workDays = 0;
+    
+    // 从今天开始计算到月底的工作日
+    for (let day = currentDay; day <= lastDay; day++) {
+        const checkDate = new Date(year, month, day);
+        const dayOfWeek = checkDate.getDay();
+        // 排除周六(6)和周日(0)
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            workDays++;
+        }
+    }
+    
+    this.debug(`剩余工作日计算: 从${currentDay}日到${lastDay}日，共${workDays}个工作日`);
+    return workDays;
+}
+
+     updateDisplay() {
+    let calculation;
+
+    if (this.serverStats) {
+        this.debug('=== 使用服务器统计数据 ===', this.serverStats);
+
+        // 从服务器数据计算预计下班时间
+        const monthOvertime = Math.max(0, parseFloat(this.serverStats.monthOvertime || 0));
+        const remainingOvertime = Math.max(0, parseFloat(this.serverStats.remainingOvertime || this.monthlyTarget));
+        const workDaysLeft = parseInt(this.serverStats.workDaysLeft || 0);
+        
+        // 重新计算预计下班时间，而不是直接使用 avgLeaveTime
+        const dailyOvertimeNeeded = workDaysLeft > 0 ? remainingOvertime / workDaysLeft : 0;
+        const [normalHour, normalMinute] = this.normalOffTime.split(':').map(Number);
+        const dailyOvertimeMinutes = dailyOvertimeNeeded * 60;
+        const totalMinutes = normalHour * 60 + normalMinute + dailyOvertimeMinutes;
+        const expectedHour = Math.floor(totalMinutes / 60);
+        const expectedMinute = Math.round(totalMinutes % 60);
+        
+        const calculatedTime = `${expectedHour.toString().padStart(2, '0')}:${expectedMinute.toString().padStart(2, '0')}`;
+
+        this.debug('=== 服务器数据重新计算 ===', {
+            服务器avgLeaveTime: this.serverStats.avgLeaveTime,
+            重新计算的时间: calculatedTime,
+            计算依据: {
+                剩余加班: remainingOvertime,
+                剩余工作日: workDaysLeft,
+                每日需加班: dailyOvertimeNeeded,
+                每日加班分钟: dailyOvertimeMinutes
+            }
+        });
+
+        calculation = {
+            time: calculatedTime, // 使用重新计算的时间，而不是服务器的 avgLeaveTime
+            monthlyOvertime: monthOvertime,
+            remainingOvertime: remainingOvertime,
+            dailyOvertime: dailyOvertimeNeeded,
+            workDaysLeft: workDaysLeft,
+            averageOffTime: this.serverStats.avgLeaveTime || '18:00' // 平均下班时间仍使用服务器数据
+        };
+    } else {
+        this.debug('=== 使用本地计算 ===');
+        calculation = this.calculateExpectedOffTime();
+
+        // 确保本地计算结果不为负数
+        calculation.monthlyOvertime = Math.max(0, calculation.monthlyOvertime);
+        calculation.remainingOvertime = Math.max(0, calculation.remainingOvertime);
+        calculation.dailyOvertime = Math.max(0, calculation.dailyOvertime);
+    }
+
+    this.debug('=== 最终显示数据 ===', calculation);
+
+    // 更新界面显示
+    document.getElementById('expectedTime').textContent = calculation.time;
+    document.getElementById('monthlyOvertime').textContent = calculation.monthlyOvertime.toFixed(1);
+    document.getElementById('remainingOvertime').textContent = calculation.remainingOvertime.toFixed(1);
+    document.getElementById('workDaysLeft').textContent = calculation.workDaysLeft;
+    document.getElementById('averageOffTime').textContent = calculation.averageOffTime;
+
+    // 更新状态文本
+    let statusText;
+    if (calculation.dailyOvertime > 0) {
+        const workDaysInfo = calculation.workDaysLeft ? `（剩余${calculation.workDaysLeft}个工作日）` : '';
+        statusText = `需加班 ${calculation.dailyOvertime.toFixed(1)} 小时/天 ${workDaysInfo}`;
+    } else {
+        statusText = '准时下班';
+    }
+    document.getElementById('statusText').textContent = statusText;
+
+    this.updateHistory();
+}
+     updateHistory() {
+    const historyList = document.getElementById('historyList');
+    historyList.innerHTML = '';
+    
+    const recentHistory = this.workHistory.slice(0, 5); // 用 slice(0, 5) 获取最新的5条
+    
+    recentHistory.forEach(record => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        const syncIcon = record.synced ? '✓' : '⟳';
+        const syncClass = record.synced ? 'synced' : 'pending';
+        
+        // -- 修正点 5: 显示时格式化日期 --
+        const displayDate = new Date(record.date).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+
+        item.innerHTML = `
+            <span>${record.date.replace(/-/g, '/')}</span>
+            <span>${record.time} (${record.overtime > 0 ? '+' : ''}${record.overtime.toFixed(1)}h) <span class="${syncClass}">${syncIcon}</span></span>
+        `;
+        historyList.appendChild(item);
+    });
+    
+    if (recentHistory.length === 0) {
+        historyList.innerHTML = '<div style="text-align: center; color: #999;">暂无打卡记录</div>';
+    }
+}
+        
+async clockOut() {
+    const now = new Date();
+    const timeString = now.toTimeString().slice(0, 5);
+    const dateString = getISODateString(now); 
+
+    const todayRecord = this.workHistory.find(record => record.date === dateString);
+    if (todayRecord) {
+        this.showNotification('今天已经打过卡了！', 'warning');
+        return;
+    }
+
+    const [normalHour, normalMinute] = this.normalOffTime.split(':').map(Number);
+    const [currentHour, currentMinute] = timeString.split(':').map(Number);
+
+    const normalMinutes = normalHour * 60 + normalMinute;
+    const currentMinutes = currentHour * 60 + currentMinute;
+    const overtimeMinutes = currentMinutes - normalMinutes;
+    const overtimeHours = Math.max(0, overtimeMinutes / 60);
+
+    const record = {
+        date: dateString,
+        time: timeString,
+        overtime: parseFloat(overtimeHours.toFixed(2)),
+        synced: false
+    };
+
+    this.debug('创建打卡记录', record);
+
+    this.workHistory.push(record);
+    this.workHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+    localStorage.setItem('workHistory', JSON.stringify(this.workHistory));
+
+    this.showNotification('正在同步数据...', 'info');
+
+    const syncSuccess = await this.writeToGoogleSheets(record);
+    if (syncSuccess) {
+        record.synced = true;
+        localStorage.setItem('workHistory', JSON.stringify(this.workHistory));
+        setTimeout(async () => {
+            await this.loadFromServer();
+        }, 1000);
+    } else {
+        this.updateDisplay();
+    }
+
+    this.showNotification('打卡成功！' + (syncSuccess ? '数据已同步' : '数据已保存到本地'),
+                       syncSuccess ? 'success' : 'warning');
+}
+
+async writeToGoogleSheets(record) {
+    if (!this.gasUrl) {
+        this.debug('未设置Google Apps Script URL');
+        return false;
+    }
+
+    try {
+        // 构建要发送的数据，确保字段名与表头一致
+        const payload = {
+            action: 'addRecord',
+            Date: record.date,                    // 对应 Date 列
+            CheckIn: '09:00:00',                 // 对应 CheckIn 列
+            CheckOut: record.time + ':00',       // 对应 CheckOut 列 (添加秒数)
+            OvertimeHours: record.overtime       // 对应 OvertimeHours 列
+        };
+
+        this.debug('发送到GAS的数据', payload);
+
+        // 使用改进的提交方法
+        const success = await this.submitToGAS(payload);
+        
+        if (success) {
+            this.debug('数据写入成功');
+            return true;
+        } else {
+            this.debug('数据写入失败');
+            return false;
+        }
+
+    } catch (error) {
+        this.debug('写入Google Sheets失败', error);
+        console.error('写入Google Sheets失败:', error);
+        return false;
+    }
+}
+async submitToGASFallback(data) {
+    return new Promise((resolve) => {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = this.gasUrl;
+        form.target = 'gas_frame'; // 使用隐藏iframe而不是新窗口
+        form.style.display = 'none';
+
+        // 为每个字段创建input
+        Object.keys(data).forEach(key => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        });
+
+        // 创建或使用现有的隐藏iframe
+        let iframe = document.getElementById('gas_frame');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'gas_frame';
+            iframe.name = 'gas_frame';
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+
+        this.debug('表单已提交到GAS', data);
+
+        // 等待一段时间后假设成功
+        setTimeout(() => {
+            resolve(true);
+        }, 2000);
+    });
+}
+async submitToGAS(data) {
+    try {
+        // 方法1: 使用 fetch POST 请求 (优先使用)
+        const formData = new FormData();
+        
+        // 将数据作为表单字段发送
+        Object.keys(data).forEach(key => {
+            formData.append(key, data[key]);
+        });
+
+        const response = await fetch(this.gasUrl, {
+            method: 'POST',
+            body: formData,
+            mode: 'no-cors' // 对于GAS必须使用no-cors
+        });
+
+        this.debug('POST请求已发送', data);
+        
+        // 由于no-cors模式无法读取响应，我们假设请求成功
+        // 可以通过后续的数据刷新来验证是否真的成功
+        return true;
+
+    } catch (error) {
+        this.debug('POST请求失败，尝试备用方法', error);
+        
+        // 方法2: 备用的隐藏表单提交方法
+        return this.submitToGASFallback(data);
+    }
+}
+            calculateWorkMinutes(checkInTime, checkOutTime) {
+                const [inHour, inMinute] = checkInTime.split(':').map(Number);
+                const [outHour, outMinute] = checkOutTime.split(':').map(Number);
+                
+                const inMinutes = inHour * 60 + inMinute;
+                const outMinutes = outHour * 60 + outMinute;
+                
+                return Math.max(0, outMinutes - inMinutes);
+            }
+
+            showNotification(message, type = 'success') {
+                const notification = document.getElementById('notification');
+                notification.textContent = message;
+                notification.className = `notification ${type}`;
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+
+            loadSettings() {
+                const savedNormalTime = localStorage.getItem('normalOffTime');
+                const savedTarget = localStorage.getItem('monthlyTarget');
+                const savedUrl = localStorage.getItem('gasUrl');
+                
+                if (savedNormalTime) {
+                    this.normalOffTime = savedNormalTime;
+                    document.getElementById('normalOffTime').value = savedNormalTime;
+                }
+                
+                if (savedTarget) {
+                    this.monthlyTarget = parseInt(savedTarget);
+                    document.getElementById('monthlyTarget').value = savedTarget;
+                }
+                
+                if (savedUrl) {
+                    this.gasUrl = savedUrl;
+                    document.getElementById('gasUrl').value = savedUrl;
+                }
+            }
+
+            async saveSettings() {
+                const normalOffTime = document.getElementById('normalOffTime').value;
+                const monthlyTarget = document.getElementById('monthlyTarget').value;
+                const gasUrl = document.getElementById('gasUrl').value;
+                
+                this.normalOffTime = normalOffTime;
+                this.monthlyTarget = parseInt(monthlyTarget);
+                this.gasUrl = gasUrl;
+                
+                localStorage.setItem('normalOffTime', normalOffTime);
+                localStorage.setItem('monthlyTarget', monthlyTarget);
+                localStorage.setItem('gasUrl', gasUrl);
+                
+                // 重新从服务器加载数据
+                if (gasUrl) {
+                    await this.loadFromServer();
+                } else {
+                    this.updateDisplay();
+                }
+                
+                this.showNotification('设置已保存！');
+            }
+        }
+
+        // 全局函数
+        let tracker;
+
+        async function clockOut() {
+            await tracker.clockOut();
+        }
+
+        function toggleSettings() {
+            const settingsSection = document.getElementById('settingsSection');
+            settingsSection.style.display = 
+                settingsSection.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function saveSettings() {
+            await tracker.saveSettings();
+        }
+
+        async function refreshData() {
+            if (!tracker.gasUrl) {
+                tracker.showNotification('请先设置Google Apps Script URL', 'warning');
+                return;
+            }
+            tracker.showNotification('正在刷新数据...', 'info');
+            await tracker.loadFromServer();
+        }
+
+        // 测试连接功能
+      async function testConnection() {
+    if (!tracker.gasUrl) {
+        tracker.showNotification('请先设置Google Apps Script URL', 'warning');
+        return;
+    }
+
+    tracker.showNotification('正在测试连接...', 'info');
+    
+    try {
+        // 尝试JSONP方式测试
+        const testData = await tracker.fetchWithJSONP();
+        tracker.debug('连接测试结果', testData);
+        
+        if (testData && !testData.error) {
+            tracker.showNotification('连接测试成功！服务器响应正常', 'success');
+        } else if (testData && testData.error) {
+            tracker.showNotification(`连接成功但服务器返回错误: ${testData.error}`, 'warning');
+        } else {
+            tracker.showNotification('连接成功但服务器返回空数据，请检查GAS代码', 'warning');
+        }
+    } catch (error) {
+        tracker.debug('连接测试失败', error);
+        tracker.showNotification(`连接测试失败: ${error.message}`, 'error');
+    }
+}
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', async () => {
+            tracker = new OvertimeTracker();
+
+            // 页面加载完成后立即尝试获取数据
+            if (tracker.gasUrl) {
+                tracker.showNotification('正在自动加载数据...', 'info');
+                await tracker.loadFromServer();
+            } else {
+                tracker.showNotification('请在设置中配置Google Apps Script URL以自动同步数据', 'warning');
+            }
+
+            // 页面获得焦点时更新数据（从其他标签页切换回来时）
+            window.addEventListener('focus', async () => {
+                if (tracker.gasUrl) {
+                    await tracker.loadFromServer(); // 重新从服务器加载
+                }
+            });
+
+            // 每30分钟自动更新一次数据（更频繁的更新）
+            setInterval(async () => {
+                if (tracker.gasUrl) {
+                    await tracker.loadFromServer();
+                }
+            }, 1800000); // 30分钟 = 1800000毫秒
+        });
+
+    </script>
+</body>
+</html>

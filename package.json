@@ -1,0 +1,12 @@
+{
+  "name": "my-offduty-app",
+  "version": "1.0.0",
+  "description": "静态页面 Node.js Express 服务，支持持续运行",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
